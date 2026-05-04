@@ -9,7 +9,7 @@ using TagLib;
 
 namespace MusicPlayer
 {
-    public partial class Form1 : Form
+    public partial class Form1 : PastelForm
     {
         List<string> playlist = new List<string>();
         List<TrackInfo> trackInfos = new List<TrackInfo>();
@@ -39,40 +39,137 @@ namespace MusicPlayer
 
         System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
 
+        // Fade-in анимация при смене трека
+        System.Windows.Forms.Timer fadeTimer = new System.Windows.Forms.Timer();
+        DateTime fadeStart;
+        const float FadeDurationSec = 0.5f;
+        Image pendingCover; // обложка, которую плавно показываем
+        bool fadeActive = false;
+
         public Form1()
         {
             InitializeComponent();
+
             btnPause.Visible = false;
-            // Инициализировать визуальные состояния переключателей
             ApplyToggleVisual(btnShuffle, isShuffle);
             ApplyToggleVisual(btnRepeat, isRepeat);
 
-            timer.Interval = 500;
+            timer.Interval = 250;
             timer.Tick += Timer_Tick;
+
+            fadeTimer.Interval = 16;
+            fadeTimer.Tick += FadeTimer_Tick;
+
+            // Sidebar-навигация: клик переключает активный пункт
+            btnNowPlaying.Click += SidebarNav_Click;
+            btnLibrary.Click += SidebarNav_Click;
+            btnPlaylists.Click += SidebarNav_Click;
+
+            // Инициализация ListView в тёмном стиле
+            StyleListView();
         }
 
-        private void ApplyToggleVisual(Button btn, bool active)
+        private void StyleListView()
         {
-            try
+            lstTracks.OwnerDraw = true;
+            lstTracks.DrawColumnHeader += LstTracks_DrawColumnHeader;
+            lstTracks.DrawItem += LstTracks_DrawItem;
+            lstTracks.DrawSubItem += LstTracks_DrawSubItem;
+        }
+
+        private void LstTracks_DrawColumnHeader(object sender, DrawListViewColumnHeaderEventArgs e)
+        {
+            using (var bg = new SolidBrush(Color.FromArgb(24, 24, 24)))
+                e.Graphics.FillRectangle(bg, e.Bounds);
+
+            // Тонкий разделитель снизу
+            using (var line = new Pen(Color.FromArgb(60, 60, 60)))
+                e.Graphics.DrawLine(line, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+
+            var headerFont = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+            TextRenderer.DrawText(e.Graphics, e.Header.Text?.ToUpper() ?? "",
+                headerFont,
+                new Rectangle(e.Bounds.X + 8, e.Bounds.Y, e.Bounds.Width - 8, e.Bounds.Height),
+                Color.FromArgb(140, 140, 140),
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+            headerFont.Dispose();
+        }
+
+        private void LstTracks_DrawItem(object sender, DrawListViewItemEventArgs e)
+        {
+            // Фон строки
+            Color bgColor;
+            if (e.Item.Selected)
+                bgColor = Color.FromArgb(50, 30, 215, 96); // зелёная подсветка
+            else if ((e.ItemIndex & 1) == 0)
+                bgColor = Color.FromArgb(28, 28, 28);
+            else
+                bgColor = Color.FromArgb(24, 24, 24);
+
+            using (var bg = new SolidBrush(bgColor))
+                e.Graphics.FillRectangle(bg, e.Bounds);
+
+            e.DrawDefault = false;
+        }
+
+        private void LstTracks_DrawSubItem(object sender, DrawListViewSubItemEventArgs e)
+        {
+            Color textColor = e.Item.Selected
+                ? Color.FromArgb(30, 215, 96)
+                : Color.FromArgb(220, 220, 220);
+
+            string text = e.SubItem.Text;
+            var textRect = new Rectangle(e.Bounds.X + 8, e.Bounds.Y, e.Bounds.Width - 8, e.Bounds.Height);
+
+            if (e.ColumnIndex == 0)
             {
-                if (active)
+                if (e.ItemIndex == currentIndex && playlist.Count > 0)
                 {
-                    btn.FlatStyle = FlatStyle.Flat;
-                    btn.FlatAppearance.BorderSize = 0;
-                    btn.BackColor = Color.FromArgb(0, 120, 215); // accent blue
-                    btn.ForeColor = Color.White;
+                    // Зелёный треугольник вместо номера для активного трека
+                    e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                    using (var brush = new SolidBrush(Color.FromArgb(30, 215, 96)))
+                    {
+                        var cy = e.Bounds.Y + e.Bounds.Height / 2;
+                        var pts = new[]
+                        {
+                            new Point(e.Bounds.X + 18, cy - 5),
+                            new Point(e.Bounds.X + 26, cy),
+                            new Point(e.Bounds.X + 18, cy + 5)
+                        };
+                        e.Graphics.FillPolygon(brush, pts);
+                    }
                 }
                 else
                 {
-                    btn.FlatStyle = FlatStyle.System;
-                    btn.BackColor = SystemColors.Control;
-                    btn.ForeColor = SystemColors.ControlText;
+                    var numColor = e.Item.Selected
+                        ? Color.FromArgb(30, 215, 96)
+                        : Color.FromArgb(140, 140, 140);
+                    TextRenderer.DrawText(e.Graphics, text, e.Item.Font, textRect, numColor,
+                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
                 }
             }
-            catch
+            else
             {
-                // игнорируем ошибки при установке стилей
+                TextRenderer.DrawText(e.Graphics, text, e.Item.Font, textRect, textColor,
+                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
             }
+        }
+
+        private void SidebarNav_Click(object sender, EventArgs e)
+        {
+            // Переключение активного пункта sidebar
+            btnNowPlaying.Active = sender == btnNowPlaying;
+            btnLibrary.Active = sender == btnLibrary;
+            btnPlaylists.Active = sender == btnPlaylists;
+        }
+
+        private void ApplyToggleVisual(PastelButton btn, bool active)
+        {
+            try
+            {
+                btn.Toggled = active;
+            }
+            catch { /* ignore */ }
         }
 
         void LoadTrack(int index)
@@ -83,23 +180,102 @@ namespace MusicPlayer
             outputDevice?.Dispose();
             audioFile?.Dispose();
 
-            audioFile = new AudioFileReader(playlist[index]);
-            outputDevice = new WaveOutEvent();
-            outputDevice.Init(audioFile);
-
-            ShowInfo();
-
-            // Подготовить индикаторы, но НЕ запускать воспроизведение.
             try
             {
-                trackBar1.Maximum = Math.Max(1, (int)audioFile.TotalTime.TotalSeconds);
-                trackBar1.Value = 0;
-                lblTime.Text = "00:00 / " + audioFile.TotalTime.ToString(@"mm\:ss");
+                audioFile = new AudioFileReader(playlist[index]);
+                outputDevice = new WaveOutEvent();
+                outputDevice.Init(audioFile);
             }
             catch
             {
-                // Без фатальной обработки — если нет данных о длительности.
+                // Если файл повреждён — пробуем следующий
+                return;
             }
+
+            ShowInfo();
+            StartFadeIn();
+
+            try
+            {
+                waveform.Maximum = Math.Max(1, (int)audioFile.TotalTime.TotalSeconds);
+                waveform.Value = 0;
+                _ = waveform.LoadFromAudioFileAsync(playlist[index], 160);
+                lblTimeCurrent.Text = "00:00";
+                lblTimeTotal.Text = audioFile.TotalTime.ToString(@"mm\:ss");
+            }
+            catch { /* ignore */ }
+
+            // Перерисовать ListView чтобы обновить маркер активного трека
+            lstTracks.Invalidate();
+        }
+
+        // ===== Fade-in эффект =====
+        private void StartFadeIn()
+        {
+            fadeStart = DateTime.UtcNow;
+            fadeActive = true;
+            fadeTimer.Start();
+            ApplyFadeAlpha(0f);
+        }
+
+        private void FadeTimer_Tick(object sender, EventArgs e)
+        {
+            float elapsed = (float)(DateTime.UtcNow - fadeStart).TotalSeconds;
+            float t = Math.Min(1f, elapsed / FadeDurationSec);
+            // EaseOutQuad
+            float eased = 1f - (1f - t) * (1f - t);
+            ApplyFadeAlpha(eased);
+            if (t >= 1f)
+            {
+                fadeTimer.Stop();
+                fadeActive = false;
+            }
+        }
+
+        private void ApplyFadeAlpha(float a)
+        {
+            // Цвета title и artist становятся прозрачными → насыщенными
+            int titleA = (int)(a * 255);
+            int artistA = (int)(a * 255);
+
+            lblTitle.ForeColor = Color.FromArgb(
+                Math.Min(255, titleA),
+                255, 255, 255);
+            lblArtist.ForeColor = Color.FromArgb(
+                Math.Min(255, artistA),
+                180, 180, 180);
+
+            // Альфа-блендинг обложки через временный Bitmap
+            if (pendingCover != null)
+            {
+                var oldImage = picCover.Image;
+                picCover.Image = ApplyAlphaToImage(pendingCover, a);
+                oldImage?.Dispose();
+            }
+        }
+
+        private Image ApplyAlphaToImage(Image src, float alpha)
+        {
+            if (src == null) return null;
+            alpha = Math.Max(0f, Math.Min(1f, alpha));
+
+            var bmp = new Bitmap(src.Width, src.Height);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                var matrix = new System.Drawing.Imaging.ColorMatrix
+                {
+                    Matrix33 = alpha
+                };
+                using (var attr = new System.Drawing.Imaging.ImageAttributes())
+                {
+                    attr.SetColorMatrix(matrix);
+                    g.DrawImage(src,
+                        new Rectangle(0, 0, src.Width, src.Height),
+                        0, 0, src.Width, src.Height,
+                        GraphicsUnit.Pixel, attr);
+                }
+            }
+            return bmp;
         }
 
         void ShowInfo()
@@ -113,7 +289,6 @@ namespace MusicPlayer
                     lblTitle.Text = tagFile.Tag.Title ?? Path.GetFileNameWithoutExtension(playlist[currentIndex]);
                     lblArtist.Text = tagFile.Tag.FirstPerformer ?? "Unknown";
 
-                    // Обложка
                     try
                     {
                         var pictures = tagFile.Tag.Pictures;
@@ -122,18 +297,22 @@ namespace MusicPlayer
                             var picData = pictures[0].Data.Data;
                             using (var ms = new MemoryStream(picData))
                             {
-                                picCover.Image?.Dispose();
-                                picCover.Image = Image.FromStream(ms);
+                                pendingCover?.Dispose();
+                                pendingCover = Image.FromStream(ms);
                             }
                         }
                         else
                         {
+                            pendingCover?.Dispose();
+                            pendingCover = null;
                             picCover.Image?.Dispose();
                             picCover.Image = null;
                         }
                     }
                     catch
                     {
+                        pendingCover?.Dispose();
+                        pendingCover = null;
                         picCover.Image?.Dispose();
                         picCover.Image = null;
                     }
@@ -143,6 +322,8 @@ namespace MusicPlayer
             {
                 lblTitle.Text = Path.GetFileNameWithoutExtension(playlist[currentIndex]);
                 lblArtist.Text = "Unknown";
+                pendingCover?.Dispose();
+                pendingCover = null;
                 picCover.Image?.Dispose();
                 picCover.Image = null;
             }
@@ -152,15 +333,14 @@ namespace MusicPlayer
         {
             if (audioFile == null) return;
 
-            trackBar1.Maximum = (int)audioFile.TotalTime.TotalSeconds;
+            waveform.Maximum = (int)audioFile.TotalTime.TotalSeconds;
 
             int current = (int)audioFile.CurrentTime.TotalSeconds;
-            if (current <= trackBar1.Maximum)
-                trackBar1.Value = current;
+            if (current <= waveform.Maximum)
+                waveform.Value = current;
 
-            lblTime.Text =
-                audioFile.CurrentTime.ToString(@"mm\:ss") + " / " +
-                audioFile.TotalTime.ToString(@"mm\:ss");
+            lblTimeCurrent.Text = audioFile.CurrentTime.ToString(@"mm\:ss");
+            lblTimeTotal.Text = audioFile.TotalTime.ToString(@"mm\:ss");
 
             if (audioFile.CurrentTime >= audioFile.TotalTime)
                 NextTrack();
@@ -182,7 +362,6 @@ namespace MusicPlayer
                     playlist = files;
                     currentIndex = 0;
 
-                    // Собрать информацию для отображения в списке треков
                     trackInfos = new List<TrackInfo>();
                     foreach (var f in files)
                     {
@@ -204,7 +383,6 @@ namespace MusicPlayer
                         }
                         catch
                         {
-                            // Если не удалось прочитать теги — заполнить минимально
                             trackInfos.Add(new TrackInfo
                             {
                                 FilePath = f,
@@ -217,7 +395,6 @@ namespace MusicPlayer
                         }
                     }
 
-                    // Заполнить ListView в стиле медиаплеера
                     lstTracks.BeginUpdate();
                     lstTracks.Items.Clear();
                     for (int i = 0; i < trackInfos.Count; i++)
@@ -229,15 +406,13 @@ namespace MusicPlayer
                         item.SubItems.Add(t.Album);
                         item.SubItems.Add(t.Genre);
                         item.SubItems.Add(t.Duration);
-                        item.Tag = i; // store index
+                        item.Tag = i;
                         lstTracks.Items.Add(item);
                     }
                     lstTracks.EndUpdate();
 
-                    // Подготовить первый трек, но не запускать воспроизведение.
                     LoadTrack(currentIndex);
 
-                    // Обновить состояние кнопок
                     btnPlay.Visible = true;
                     btnPause.Visible = false;
                 }
@@ -348,11 +523,16 @@ namespace MusicPlayer
             }
         }
 
-        private void trackBar1_Scroll(object sender, EventArgs e)
+        private void waveform_Seek(object sender, int newSeconds)
         {
             if (audioFile != null)
             {
-                audioFile.CurrentTime = TimeSpan.FromSeconds(trackBar1.Value);
+                try
+                {
+                    audioFile.CurrentTime = TimeSpan.FromSeconds(
+                        Math.Min(newSeconds, audioFile.TotalTime.TotalSeconds));
+                }
+                catch { }
             }
         }
 
@@ -363,25 +543,36 @@ namespace MusicPlayer
                 int idx = lstTracks.SelectedIndices[0];
                 if (idx >= 0 && idx < playlist.Count)
                 {
+                    bool wasPlaying = btnPause.Visible;
                     currentIndex = idx;
                     LoadTrack(currentIndex);
+
+                    if (wasPlaying)
+                    {
+                        outputDevice?.Play();
+                        timer.Start();
+                        btnPlay.Visible = false;
+                        btnPause.Visible = true;
+                    }
                 }
             }
-        }
-
-        private void Form1_Load(object sender, EventArgs e)
-        {
-
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             timer.Stop();
+            fadeTimer.Stop();
             outputDevice?.Stop();
             outputDevice?.Dispose();
             audioFile?.Dispose();
             picCover.Image?.Dispose();
+            pendingCover?.Dispose();
             base.OnFormClosing(e);
+        }
+
+        private void lblTitle_Click(object sender, EventArgs e)
+        {
+            // зарезервировано
         }
     }
 }
