@@ -18,7 +18,7 @@ namespace MusicPlayer
 
         private void InitializeComponent()
         {
-            pnlSidebar = new CardPanel();
+            pnlSidebar = new Panel();
             btnOpen = new PastelButton();
             btnNowPlaying = new PastelButton();
             btnLibrary = new PastelButton();
@@ -26,14 +26,14 @@ namespace MusicPlayer
             lblAppTitle = new Label();
             lblNavHeader = new Label();
 
-            pnlMain = new CardPanel();
-            pnlNowPlaying = new CardPanel();
+            pnlMain = new Panel();
+            pnlNowPlaying = new Panel();
             picCover = new PictureBox();
             lblTitle = new Label();
             lblArtist = new Label();
             lblNowPlayingTag = new Label();
 
-            pnlPlaylist = new CardPanel();
+            pnlPlaylist = new Panel();
             lblPlaylistHeader = new Label();
             lstTracks = new ListView();
             chNo = new ColumnHeader();
@@ -43,7 +43,7 @@ namespace MusicPlayer
             chGenre = new ColumnHeader();
             chDuration = new ColumnHeader();
 
-            pnlBottomBar = new CardPanel();
+            pnlBottomBar = new Panel();
             waveform = new WaveformControl();
             lblTimeCurrent = new Label();
             lblTimeTotal = new Label();
@@ -66,8 +66,8 @@ namespace MusicPlayer
             // pnlSidebar — 240px слева
             // 
             pnlSidebar.BackColor = Color.Transparent;
-            pnlSidebar.SurfaceColor = Color.FromArgb(255, 0, 0, 0);
-            pnlSidebar.CornerRadius = 8;
+
+
             pnlSidebar.Location = new Point(8, 8);
             pnlSidebar.Size = new Size(232, 692);
             pnlSidebar.Name = "pnlSidebar";
@@ -160,8 +160,8 @@ namespace MusicPlayer
             // pnlMain — основная область
             // 
             pnlMain.BackColor = Color.Transparent;
-            pnlMain.SurfaceColor = Color.FromArgb(255, 30, 30, 30);
-            pnlMain.CornerRadius = 8;
+
+
             pnlMain.Location = new Point(248, 8);
             pnlMain.Size = new Size(1024, 692);
             pnlMain.Name = "pnlMain";
@@ -172,8 +172,8 @@ namespace MusicPlayer
             // pnlNowPlaying — обложка + название (часть pnlMain)
             // 
             pnlNowPlaying.BackColor = Color.Transparent;
-            pnlNowPlaying.SurfaceColor = Color.FromArgb(0, 0, 0, 0);
-            pnlNowPlaying.CornerRadius = 0;
+
+
             pnlNowPlaying.Location = new Point(0, 0);
             pnlNowPlaying.Size = new Size(1024, 240);
             pnlNowPlaying.Name = "pnlNowPlaying";
@@ -230,8 +230,8 @@ namespace MusicPlayer
             // pnlPlaylist
             // 
             pnlPlaylist.BackColor = Color.Transparent;
-            pnlPlaylist.SurfaceColor = Color.FromArgb(0, 0, 0, 0);
-            pnlPlaylist.CornerRadius = 0;
+
+
             pnlPlaylist.Location = new Point(0, 240);
             pnlPlaylist.Size = new Size(1024, 452);
             pnlPlaylist.Name = "pnlPlaylist";
@@ -287,10 +287,10 @@ namespace MusicPlayer
             // Высота 92px: верхняя половина — кнопки, нижняя — waveform
             // 
             pnlBottomBar.BackColor = Color.Transparent;
-            pnlBottomBar.SurfaceColor = Color.FromArgb(255, 24, 24, 24);
-            pnlBottomBar.ShowBorder = true;
-            pnlBottomBar.GlassBorderColor = Color.FromArgb(40, 255, 255, 255);
-            pnlBottomBar.CornerRadius = 0;
+
+
+
+
             pnlBottomBar.Location = new Point(0, 708);
             pnlBottomBar.Size = new Size(1280, 92);
             pnlBottomBar.Name = "pnlBottomBar";
@@ -434,7 +434,7 @@ namespace MusicPlayer
             ResumeLayout(false);
         }
 
-        private CardPanel pnlSidebar;
+        private Panel pnlSidebar;
         private Label lblAppTitle;
         private Label lblNavHeader;
         private PastelButton btnOpen;
@@ -442,14 +442,14 @@ namespace MusicPlayer
         private PastelButton btnLibrary;
         private PastelButton btnPlaylists;
 
-        private CardPanel pnlMain;
-        private CardPanel pnlNowPlaying;
+        private Panel pnlMain;
+        private Panel pnlNowPlaying;
         private PictureBox picCover;
         private Label lblNowPlayingTag;
         private Label lblTitle;
         private Label lblArtist;
 
-        private CardPanel pnlPlaylist;
+        private Panel pnlPlaylist;
         private Label lblPlaylistHeader;
         private ListView lstTracks;
         private ColumnHeader chNo;
@@ -459,7 +459,7 @@ namespace MusicPlayer
         private ColumnHeader chGenre;
         private ColumnHeader chDuration;
 
-        private CardPanel pnlBottomBar;
+        private Panel pnlBottomBar;
         private WaveformControl waveform;
         private Label lblTimeCurrent;
         private Label lblTimeTotal;

@@ -12,23 +12,7 @@ namespace MusicPlayer
     public partial class Form1 : PastelForm
     {
         List<string> playlist = new List<string>();
-        List<TrackInfo> trackInfos = new List<TrackInfo>();
         int currentIndex = 0;
-
-        private class TrackInfo
-        {
-            public string FilePath { get; set; }
-            public string FileName { get; set; }
-            public string Artist { get; set; }
-            public string Album { get; set; }
-            public string Genre { get; set; }
-            public string Duration { get; set; }
-
-            public override string ToString()
-            {
-                return $"{FileName} | {Artist} | {Album} | {Genre} | {Duration}";
-            }
-        }
 
         WaveOutEvent outputDevice;
         AudioFileReader audioFile;
@@ -38,13 +22,6 @@ namespace MusicPlayer
         Random random = new Random();
 
         System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
-
-        // Fade-in анимация при смене трека
-        System.Windows.Forms.Timer fadeTimer = new System.Windows.Forms.Timer();
-        DateTime fadeStart;
-        const float FadeDurationSec = 0.5f;
-        Image pendingCover; // обложка, которую плавно показываем
-        bool fadeActive = false;
 
         public Form1()
         {
@@ -57,15 +34,10 @@ namespace MusicPlayer
             timer.Interval = 250;
             timer.Tick += Timer_Tick;
 
-            fadeTimer.Interval = 16;
-            fadeTimer.Tick += FadeTimer_Tick;
-
-            // Sidebar-навигация: клик переключает активный пункт
             btnNowPlaying.Click += SidebarNav_Click;
             btnLibrary.Click += SidebarNav_Click;
             btnPlaylists.Click += SidebarNav_Click;
 
-            // Инициализация ListView в тёмном стиле
             StyleListView();
         }
 
@@ -82,7 +54,6 @@ namespace MusicPlayer
             using (var bg = new SolidBrush(Color.FromArgb(24, 24, 24)))
                 e.Graphics.FillRectangle(bg, e.Bounds);
 
-            // Тонкий разделитель снизу
             using (var line = new Pen(Color.FromArgb(60, 60, 60)))
                 e.Graphics.DrawLine(line, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
 
@@ -97,10 +68,9 @@ namespace MusicPlayer
 
         private void LstTracks_DrawItem(object sender, DrawListViewItemEventArgs e)
         {
-            // Фон строки
             Color bgColor;
             if (e.Item.Selected)
-                bgColor = Color.FromArgb(50, 30, 215, 96); // зелёная подсветка
+                bgColor = Color.FromArgb(50, 30, 215, 96);
             else if ((e.ItemIndex & 1) == 0)
                 bgColor = Color.FromArgb(28, 28, 28);
             else
@@ -125,7 +95,6 @@ namespace MusicPlayer
             {
                 if (e.ItemIndex == currentIndex && playlist.Count > 0)
                 {
-                    // Зелёный треугольник вместо номера для активного трека
                     e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
                     using (var brush = new SolidBrush(Color.FromArgb(30, 215, 96)))
                     {
@@ -157,7 +126,6 @@ namespace MusicPlayer
 
         private void SidebarNav_Click(object sender, EventArgs e)
         {
-            // Переключение активного пункта sidebar
             btnNowPlaying.Active = sender == btnNowPlaying;
             btnLibrary.Active = sender == btnLibrary;
             btnPlaylists.Active = sender == btnPlaylists;
@@ -169,7 +137,7 @@ namespace MusicPlayer
             {
                 btn.Toggled = active;
             }
-            catch { /* ignore */ }
+            catch { }
         }
 
         void LoadTrack(int index)
@@ -188,94 +156,21 @@ namespace MusicPlayer
             }
             catch
             {
-                // Если файл повреждён — пробуем следующий
                 return;
             }
 
             ShowInfo();
-            StartFadeIn();
 
             try
             {
                 waveform.Maximum = Math.Max(1, (int)audioFile.TotalTime.TotalSeconds);
                 waveform.Value = 0;
-                _ = waveform.LoadFromAudioFileAsync(playlist[index], 160);
                 lblTimeCurrent.Text = "00:00";
                 lblTimeTotal.Text = audioFile.TotalTime.ToString(@"mm\:ss");
             }
-            catch { /* ignore */ }
+            catch { }
 
-            // Перерисовать ListView чтобы обновить маркер активного трека
             lstTracks.Invalidate();
-        }
-
-        // ===== Fade-in эффект =====
-        private void StartFadeIn()
-        {
-            fadeStart = DateTime.UtcNow;
-            fadeActive = true;
-            fadeTimer.Start();
-            ApplyFadeAlpha(0f);
-        }
-
-        private void FadeTimer_Tick(object sender, EventArgs e)
-        {
-            float elapsed = (float)(DateTime.UtcNow - fadeStart).TotalSeconds;
-            float t = Math.Min(1f, elapsed / FadeDurationSec);
-            // EaseOutQuad
-            float eased = 1f - (1f - t) * (1f - t);
-            ApplyFadeAlpha(eased);
-            if (t >= 1f)
-            {
-                fadeTimer.Stop();
-                fadeActive = false;
-            }
-        }
-
-        private void ApplyFadeAlpha(float a)
-        {
-            // Цвета title и artist становятся прозрачными → насыщенными
-            int titleA = (int)(a * 255);
-            int artistA = (int)(a * 255);
-
-            lblTitle.ForeColor = Color.FromArgb(
-                Math.Min(255, titleA),
-                255, 255, 255);
-            lblArtist.ForeColor = Color.FromArgb(
-                Math.Min(255, artistA),
-                180, 180, 180);
-
-            // Альфа-блендинг обложки через временный Bitmap
-            if (pendingCover != null)
-            {
-                var oldImage = picCover.Image;
-                picCover.Image = ApplyAlphaToImage(pendingCover, a);
-                oldImage?.Dispose();
-            }
-        }
-
-        private Image ApplyAlphaToImage(Image src, float alpha)
-        {
-            if (src == null) return null;
-            alpha = Math.Max(0f, Math.Min(1f, alpha));
-
-            var bmp = new Bitmap(src.Width, src.Height);
-            using (var g = Graphics.FromImage(bmp))
-            {
-                var matrix = new System.Drawing.Imaging.ColorMatrix
-                {
-                    Matrix33 = alpha
-                };
-                using (var attr = new System.Drawing.Imaging.ImageAttributes())
-                {
-                    attr.SetColorMatrix(matrix);
-                    g.DrawImage(src,
-                        new Rectangle(0, 0, src.Width, src.Height),
-                        0, 0, src.Width, src.Height,
-                        GraphicsUnit.Pixel, attr);
-                }
-            }
-            return bmp;
         }
 
         void ShowInfo()
@@ -297,22 +192,18 @@ namespace MusicPlayer
                             var picData = pictures[0].Data.Data;
                             using (var ms = new MemoryStream(picData))
                             {
-                                pendingCover?.Dispose();
-                                pendingCover = Image.FromStream(ms);
+                                picCover.Image?.Dispose();
+                                picCover.Image = Image.FromStream(ms);
                             }
                         }
                         else
                         {
-                            pendingCover?.Dispose();
-                            pendingCover = null;
                             picCover.Image?.Dispose();
                             picCover.Image = null;
                         }
                     }
                     catch
                     {
-                        pendingCover?.Dispose();
-                        pendingCover = null;
                         picCover.Image?.Dispose();
                         picCover.Image = null;
                     }
@@ -322,8 +213,6 @@ namespace MusicPlayer
             {
                 lblTitle.Text = Path.GetFileNameWithoutExtension(playlist[currentIndex]);
                 lblArtist.Text = "Unknown";
-                pendingCover?.Dispose();
-                pendingCover = null;
                 picCover.Image?.Dispose();
                 picCover.Image = null;
             }
@@ -362,52 +251,33 @@ namespace MusicPlayer
                     playlist = files;
                     currentIndex = 0;
 
-                    trackInfos = new List<TrackInfo>();
-                    foreach (var f in files)
+                    lstTracks.BeginUpdate();
+                    lstTracks.Items.Clear();
+                    for (int i = 0; i < files.Count; i++)
                     {
+                        var f = files[i];
                         try
                         {
                             using (var t = TagLib.File.Create(f))
                             {
                                 var duration = t.Properties?.Duration ?? TimeSpan.Zero;
-                                trackInfos.Add(new TrackInfo
-                                {
-                                    FilePath = f,
-                                    FileName = Path.GetFileName(f),
-                                    Artist = t.Tag.FirstPerformer ?? "Unknown",
-                                    Album = t.Tag.Album ?? "",
-                                    Genre = t.Tag.FirstGenre ?? "",
-                                    Duration = duration.ToString(@"mm\:ss")
-                                });
+                                var item = new ListViewItem((i + 1).ToString());
+                                item.SubItems.Add(Path.GetFileName(f));
+                                item.SubItems.Add(t.Tag.FirstPerformer ?? "Unknown");
+                                item.SubItems.Add(t.Tag.Album ?? "");
+                                item.SubItems.Add(duration.ToString(@"mm\:ss"));
+                                lstTracks.Items.Add(item);
                             }
                         }
                         catch
                         {
-                            trackInfos.Add(new TrackInfo
-                            {
-                                FilePath = f,
-                                FileName = Path.GetFileName(f),
-                                Artist = "Unknown",
-                                Album = "",
-                                Genre = "",
-                                Duration = "00:00"
-                            });
+                            var item = new ListViewItem((i + 1).ToString());
+                            item.SubItems.Add(Path.GetFileName(f));
+                            item.SubItems.Add("Unknown");
+                            item.SubItems.Add("");
+                            item.SubItems.Add("00:00");
+                            lstTracks.Items.Add(item);
                         }
-                    }
-
-                    lstTracks.BeginUpdate();
-                    lstTracks.Items.Clear();
-                    for (int i = 0; i < trackInfos.Count; i++)
-                    {
-                        var t = trackInfos[i];
-                        var item = new ListViewItem((i + 1).ToString());
-                        item.SubItems.Add(t.FileName);
-                        item.SubItems.Add(t.Artist);
-                        item.SubItems.Add(t.Album);
-                        item.SubItems.Add(t.Genre);
-                        item.SubItems.Add(t.Duration);
-                        item.Tag = i;
-                        lstTracks.Items.Add(item);
                     }
                     lstTracks.EndUpdate();
 
@@ -494,7 +364,7 @@ namespace MusicPlayer
 
             if (isRepeat)
             {
-                // currentIndex остаётся прежним
+                // остаёмся на текущем
             }
             else if (isShuffle)
             {
@@ -561,12 +431,10 @@ namespace MusicPlayer
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             timer.Stop();
-            fadeTimer.Stop();
             outputDevice?.Stop();
             outputDevice?.Dispose();
             audioFile?.Dispose();
             picCover.Image?.Dispose();
-            pendingCover?.Dispose();
             base.OnFormClosing(e);
         }
 
